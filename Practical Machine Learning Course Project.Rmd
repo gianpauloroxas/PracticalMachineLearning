@@ -1,0 +1,122 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Gian Paulo Roxas"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview of the Course Project
+In this project, my objective is to predict the manner in which participants performed exercises. To accomplish this, I will utilize data collected from accelerometers placed on the belt, forearm, arm, and dumbbell of six individuals. The variable I am trying to predict, known as "classe," is present in the training dataset. To ensure robust model evaluation, I will employ k-folds cross-validation on the training set.
+
+My approach involves training four different models: Decision Tree, Random Forest, and Support Vector Machine. Using k-folds cross-validation, I will assess each model's performance on the training set.
+
+Once the models are trained and evaluated, I will use a validation set randomly selected from the training data in CSV format to assess accuracy and out-of-sample error rate. By analyzing the performance metrics obtained through cross-validation, I will determine the best model. Finally, I will use this best model to predict the manner of exercise for 20 cases found in the test CSV set.
+
+# Background 
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: 
+http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+ (see the section on the Weight Lifting Exercise Dataset).
+
+# Loading the Dataset and Libraries
+
+```{r, message=FALSE}
+library(randomForest)
+library(knitr)
+library(lattice)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(rattle)
+library(corrplot)
+set.seed(143)
+
+setwd("/Users/gianpauloroxas/Downloads/Practical Machine Learning Course Project")
+
+trainingdata = read.csv("pml-training.csv")
+testingdata = read.csv("pml-testing.csv")
+```
+
+# Cleaning Dataset
+
+I removed N/A variables in the trainingdata.csv and removed near zero variance variables using this code:
+```{r}
+trainingdata <- trainingdata[,colMeans(is.na(trainingdata)) < .9] 
+trainingdata <- trainingdata[,-c(1:7)]
+
+#Removing near zero variance variables.
+nvz <- nearZeroVar(trainingdata)
+trainingdata <- trainingdata[, -nvz]
+
+# Checking the dimensions of the cleaned dataset
+dim(trainingdata) 
+```
+The dataset now has 19622 rows and 53 columns!
+
+Now that we have finished removing the unnecessary variables, we can now split the training set into a validation and sub training set. The testing set “testcsv” will be left alone, and used for the final quiz test cases.
+
+```{r}
+inTrain <- createDataPartition(y=trainingdata$classe, p=0.7, list=F)
+train <- trainingdata[inTrain,]
+valid <- trainingdata[-inTrain,]
+```
+
+# Model Development
+
+In this project, I tested three models, including Decision Trees, Random Forest, and Support Vector Machine (SVM). Mainly because decision trees are simple and interpretable, Random Forest reduces overfitting and improves accuracy through ensemble learning, and SVM is a powerful algorithm that aims to find the best hyperplane for separating classes, providing effective results for both binary and multiclass classification tasks.
+
+```{r}
+# Set up control for training to use 3-fold cross validation.
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+## Decision Tree
+
+Model:
+```{r}
+decisiontree = train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5) # Train the model
+fancyRpartPlot(decisiontree$finalModel, main = "Decision Tree for classe Prediction")
+```
+
+Prediction:
+```{r}
+prediction_decisiontree = predict(decisiontree, valid)
+cmtrees <- confusionMatrix(prediction_decisiontree, factor(valid$classe))
+cmtrees
+```
+
+## Random Forest
+
+```{r}
+randomforest = train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+prediction_randomforest = predict(randomforest, valid)
+cmrf <- confusionMatrix(prediction_randomforest, factor(valid$classe))
+cmrf
+```
+
+## Support Vector Machine (SVM)
+
+```{r}
+svm<- train(classe~., data=train, method="svmLinear", trControl = control, tuneLength = 5, verbose = F)
+prediction_svm <- predict(svm, valid)
+cmsvm <- confusionMatrix(prediction_svm, factor(valid$classe))
+cmsvm
+```
+
+## Summary of Results 
+
+The key to effective machine learning lies in identifying the best model that can accurately predict outcomes based on given data. In our study, we employed three popular classification algorithms, namely Decision Tree, Random Forest, and Support Vector Machine (SVM), to predict the target variable "classe." After training and evaluating the models on the validation data, we concluded that the Random Forest model outperformed the others.
+
+in conclusion, the Random Forest model demonstrated exceptional performance, achieving an impressive accuracy of 99.58% and a remarkably low out-of-sample error rate of 0.42%. Such high accuracy and minimal error rates indicate the robustness and reliability of the Random Forest model in predicting the "classe" values. Consequently, we selected the Random Forest model as the best-suited one for our purposes.
+
+# Predictions on Test Set
+
+Running our test set to predict the classe (5 levels) outcome for 20 cases with the Random Forest model.
+
+```{r}
+pred <- predict(randomforest, testingdata)
+print(pred)
+```
